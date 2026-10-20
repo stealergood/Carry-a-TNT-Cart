@@ -92,13 +92,23 @@ function CartHealthService.Damage(record, amount: number?): boolean
 	record.model:SetAttribute(Constants.HealthAttribute, newHealth)
 	updateGui(record)
 	if newHealth <= 0 and not record.exploded then
-		record.exploded = true
-		record.model:SetAttribute("Exploded", true)
-		if onDepleted then
-			onDepleted(record)
-		end
-		CartExplosionService.Explode(record)
+		CartHealthService.Explode(record)
 	end
+	return true
+end
+
+-- Used when the puller dies. Keep the detonation path identical to normal
+-- cart damage so cleanup, VFX, and scheduled replacement stay centralized.
+function CartHealthService.Explode(record): boolean
+	if record.exploded or not record.model.Parent then
+		return false
+	end
+	record.exploded = true
+	record.model:SetAttribute("Exploded", true)
+	if onDepleted then
+		onDepleted(record)
+	end
+	CartExplosionService.Explode(record)
 	return true
 end
 

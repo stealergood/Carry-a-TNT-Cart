@@ -1,6 +1,17 @@
 export type CartState = "Idle" | "Claiming" | "Pulling" | "Releasing" | "Disabled"
 
 export type CartRecord = {
+	partyId: string?,
+	participants: {
+		{
+			player: Player,
+			slot: number,
+			handAttachment: Attachment,
+			attachment: Attachment,
+			rope: RopeConstraint,
+			beam: Beam,
+		}
+	}?,
 	model: Model,
 	root: BasePart,
 	prompt: ProximityPrompt,
@@ -18,6 +29,7 @@ export type CartRecord = {
 	exploded: boolean,
 	respawnScheduled: boolean,
 	respawnTemplate: Model?,
+	respawnOwnerUserId: number?,
 	spawnCFrame: CFrame,
 	activeDamageParts: { [Instance]: number },
 	windowStartPosition: Vector3,

@@ -31,7 +31,7 @@ function CartRespawnService.CreateTemplate(model: Model): Model?
 	return template
 end
 
-function CartRespawnService.Schedule(record)
+function CartRespawnService.Schedule(record, ownerUserId: number?)
 	if record.respawnScheduled or not record.respawnTemplate then
 		return
 	end
@@ -47,6 +47,7 @@ function CartRespawnService.Schedule(record)
 		cart.Name = name
 		cart:SetAttribute("CartId", nil)
 		cart:SetAttribute("Exploded", nil)
+		cart:SetAttribute("RespawnOwnerUserId", ownerUserId)
 		CollectionService:RemoveTag(cart, Constants.Tag)
 		cart.Parent = workspace
 		cart:PivotTo(spawnCFrame)

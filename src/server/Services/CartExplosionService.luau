@@ -33,7 +33,7 @@ local function emitParticles(parent: Instance, texture: string, color: ColorSequ
 	emitter:Emit(count)
 end
 
-local function createVfx(position: Vector3)
+local function createVfx(position: Vector3, effectParent: Instance)
 	local core = Instance.new("Part")
 	core.Name = "CartExplosionVFX"
 	core.Shape = Enum.PartType.Ball
@@ -46,7 +46,7 @@ local function createVfx(position: Vector3)
 	core.CanCollide = false
 	core.CanTouch = false
 	core.CanQuery = false
-	core.Parent = workspace
+	core.Parent = effectParent
 
 	local attachment = Instance.new("Attachment")
 	attachment.Parent = core
@@ -132,7 +132,7 @@ local function collectFragments(model: Model, root: BasePart): { BasePart }
 	return fragments
 end
 
-local function scatterCart(record, position: Vector3)
+local function scatterCart(record, position: Vector3, effectParent: Instance)
 	local random = Random.new()
 	local fragments = collectFragments(record.model, record.root)
 	local selected = {}
@@ -144,7 +144,7 @@ local function scatterCart(record, position: Vector3)
 				joint:Destroy()
 			end
 		end
-		fragment.Parent = workspace
+		fragment.Parent = effectParent
 		fragment.Anchored = false
 		fragment.Massless = false
 		fragment.CanCollide = true
@@ -176,9 +176,18 @@ end
 
 function CartExplosionService.Explode(record)
 	local position = record.root.Position
-	createVfx(position)
+	local effectParent: Instance = workspace
+	if record.partyId then
+		local folder = Instance.new("Folder")
+		folder.Name = "PartyCartEffects"
+		folder:SetAttribute("PartyEffectsId", record.partyId)
+		folder.Parent = workspace
+		effectParent = folder
+		Debris:AddItem(folder, math.max(3, Config.ExplosionFragmentLifetime) + 1)
+	end
+	createVfx(position, effectParent)
 	killNearbyPlayers(position)
-	scatterCart(record, position)
+	scatterCart(record, position, effectParent)
 	task.delay(Config.ExplosionCartRemovalDelay, function()
 		if record.model.Parent then
 			record.model:Destroy()

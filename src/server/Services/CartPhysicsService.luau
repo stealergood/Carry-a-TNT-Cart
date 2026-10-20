@@ -262,6 +262,18 @@ function CartPhysicsService.Prepare(model)
 		pull.Parent = root
 	end
 	pull.Position = Config.PullOffset
+	if model:GetAttribute("PartyId") then
+		local PartyConfig = require(game.ReplicatedStorage.Shared.PartyConfig)
+		for slot, name in ipairs(PartyConfig.AttachmentNames) do
+			local attachment = root:FindFirstChild(name)
+			if not attachment then
+				attachment = Instance.new("Attachment")
+				attachment.Name = name
+				attachment.Parent = root
+			end
+			attachment.Position = PartyConfig.AttachmentOffsets[slot]
+		end
+	end
 
 	local center = root:FindFirstChild(Constants.CenterAttachment)
 	if not center then
@@ -353,6 +365,29 @@ function CartPhysicsService.UpdatePushDrive(root)
 		return
 	end
 	drive.Force = CartMotion.PushForce(root, pushProxy)
+end
+
+function CartPhysicsService.UpdatePartyDrive(record)
+	local total = Vector3.zero
+	for _, member in ipairs(record.participants or {}) do
+		local character = member.player.Character
+		local playerRoot = character and character:FindFirstChild("HumanoidRootPart")
+		if playerRoot and member.handAttachment.Parent and member.attachment.Parent then
+			total += CartMotion.PullForce(record.root, member.handAttachment, playerRoot, member.attachment)
+		end
+	end
+	local maxForce = record.root.AssemblyMass * Config.MaxPullAcceleration
+	if total.Magnitude > maxForce then
+		total = total.Unit * maxForce
+	end
+	local root = record.root
+	root[Constants.PullDrive].Force = total
+	-- Party propulsion comes only from the crew; outsiders cannot steer it by pushing.
+	root[Constants.PushDrive].Force = Vector3.zero
+	root[Constants.MotionResistance].Force = CartMotion.ResistanceForce(root, Config.MaxCartSpeed)
+	root[Constants.LateralGrip].Force = CartMotion.LateralGripForce(root, total)
+	root[Constants.SteeringTorque].Torque = CartMotion.SteeringTorque(root, total, true)
+	CartPhysicsService.UpdateUprightTorque(root)
 end
 
 function CartPhysicsService.UpdateMotionResistance(root, maxSpeed, useIdlePushResistance)

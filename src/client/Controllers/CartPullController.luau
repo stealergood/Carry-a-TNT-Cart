@@ -13,6 +13,9 @@ local activeHumanoid: Humanoid? = nil
 local originalWalkSpeed: number? = nil
 
 local function clearDrive(model)
+	if model and model:GetAttribute("PartyId") then
+		return
+	end
 	local root = model and model:FindFirstChild(Constants.PhysicsRoot)
 	local drive = root and root:FindFirstChild(Constants.PullDrive)
 	if drive and drive:IsA("VectorForce") then
@@ -71,6 +74,22 @@ local function updateMovementLoad(humanoid, loadRatio, dt)
 end
 
 local function updatePull(model, dt)
+	if model:GetAttribute("PartyId") then
+		local humanoid, characterRoot = getCharacterParts()
+		local root = model:FindFirstChild(Constants.PhysicsRoot)
+		local slot = player:GetAttribute("PartySlot")
+		local PartyConfig = require(ReplicatedStorage.Shared.PartyConfig)
+		local attachmentName = typeof(slot) == "number" and PartyConfig.AttachmentNames[slot]
+		local pull = root and attachmentName and root:FindFirstChild(attachmentName)
+		local hand = characterRoot and characterRoot:FindFirstChild(Constants.HandAttachment)
+		if humanoid and root and pull and hand and model:GetAttribute("CartState") == Constants.States.Pulling then
+			local _, loadRatio = CartMotion.PullForce(root, hand, characterRoot, pull)
+			updateMovementLoad(humanoid, loadRatio, dt)
+		else
+			restorePlayerMovement()
+		end
+		return
+	end
 	if
 		model:GetAttribute("CartState") ~= Constants.States.Pulling
 		or model:GetAttribute("PullerUserId") ~= player.UserId

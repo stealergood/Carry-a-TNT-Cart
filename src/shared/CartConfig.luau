@@ -19,6 +19,8 @@ return table.freeze({
 	ExplosionFragmentLifetime = 6,
 	ExplosionCartRemovalDelay = 0.25,
 	CartRespawnDelay = 5,
+	-- Posisi PhysicsRoot cart relatif terhadap HumanoidRootPart setelah player respawn.
+	RespawnCartOffset = Vector3.new(-5, -2, 0),
 	-- Percepatan dikalikan AssemblyMass agar rasa gerak tetap konsisten saat berat diubah.
 	PullSpringAccelerationPerStud = 1.7,
 	PullDampingAcceleration = 0.25,

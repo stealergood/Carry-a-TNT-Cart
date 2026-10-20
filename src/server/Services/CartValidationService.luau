@@ -18,6 +18,9 @@ function CartValidationService.GetCharacterRoot(player)
 end
 
 function CartValidationService.CanClaim(record, player, activeByPlayer)
+	if record.partyId or player:GetAttribute("PartyId") then
+		return false
+	end
 	if record.state ~= Constants.States.Idle or record.puller or activeByPlayer[player] then
 		return false
 	end
@@ -36,6 +39,32 @@ function CartValidationService.CanClaim(record, player, activeByPlayer)
 end
 
 function CartValidationService.CheckActive(record)
+	if record.partyId then
+		if
+			not record.model:IsDescendantOf(workspace)
+			or record.root.Anchored
+			or not record.participants
+			or #record.participants == 0
+		then
+			return false, "party cart invalid"
+		end
+		for _, member in ipairs(record.participants) do
+			local characterRoot = CartValidationService.GetCharacterRoot(member.player)
+			if
+				not characterRoot
+				or not member.rope.Parent
+				or not member.beam.Parent
+				or not member.handAttachment.Parent
+				or not member.attachment.Parent
+			then
+				return false, "party member invalid"
+			end
+			if (characterRoot.Position - member.attachment.WorldPosition).Magnitude > Config.MaxReleaseDistance then
+				return false, "party rope too far"
+			end
+		end
+		return true
+	end
 	local player = record.puller
 	if not player or not record.model:IsDescendantOf(workspace) or record.root.Anchored then
 		return false, "cart invalid"

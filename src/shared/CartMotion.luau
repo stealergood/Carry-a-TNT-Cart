@@ -13,8 +13,17 @@ local function smoothstep(value: number): number
 	return t * t * (3 - 2 * t)
 end
 
-function CartMotion.PullForce(root: BasePart, hand: Attachment, playerRoot: BasePart): (Vector3, number)
-	local offset = horizontal(hand.WorldPosition - root.PullAttachment.WorldPosition)
+function CartMotion.PullForce(
+	root: BasePart,
+	hand: Attachment,
+	playerRoot: BasePart,
+	pullAttachment: Attachment?
+): (Vector3, number)
+	local pull = pullAttachment or root:FindFirstChild("PullAttachment")
+	if not pull or not pull:IsA("Attachment") then
+		return Vector3.zero, 0
+	end
+	local offset = horizontal(hand.WorldPosition - pull.WorldPosition)
 	if offset.Magnitude <= 0.05 then
 		return Vector3.zero, 0
 	end

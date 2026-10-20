@@ -5,4 +5,8 @@
 /*.rbxlx.lock
 /*.rbxl.lock
 
+AGENTS.md
 sourcemap.json
+
+# Local implementation backups and build outputs
+/artifacts/
