@@ -1,10 +1,11 @@
 # Project place file
 /Carry a TNT Cart.rbxlx
-
+/assets/
 # Roblox Studio lock files
 /*.rbxlx.lock
 /*.rbxl.lock
 
+STYLE_GUIDE.md
 AGENTS.md
 sourcemap.json
 

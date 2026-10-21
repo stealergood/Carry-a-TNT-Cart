@@ -8,6 +8,9 @@ local Config = require(ReplicatedStorage.Shared.PartyConfig)
 
 local PartyController = {}
 local player = Players.LocalPlayer
+-- Keeps the party dialog compact so gameplay stays visible behind it.
+local DIALOG_MAX_SCALE = 0.8
+local DIALOG_SCREEN_FILL = 0.88
 local started = false
 
 function PartyController.Start()
@@ -43,13 +46,67 @@ function PartyController.Start()
 		for index = 1, Config.MaxPlayers do
 			local button = dialog.Options["Size" .. index]
 			local selected = index == capacity
-			button.Face.BackgroundColor3 = if selected then Color3.fromRGB(45, 183, 243) else Color3.fromRGB(49, 65, 81)
-			button.Lip.BackgroundColor3 = if selected then Color3.fromRGB(8, 124, 185) else Color3.fromRGB(27, 38, 49)
-			button.Face.Selected.Visible = selected
+			local face = button:FindFirstChild("Face")
+			local lip = button:FindFirstChild("Lip")
+			if face and lip then
+				local num = face:FindFirstChild("Number")
+				local unit = face:FindFirstChild("Unit")
+				local grad = face:FindFirstChildOfClass("UIGradient")
+
+				if selected then
+					face.BackgroundColor3 = Color3.fromRGB(0, 195, 255)
+					lip.BackgroundColor3 = Color3.fromRGB(0, 75, 175)
+					if grad then
+						grad.Enabled = true
+					end
+					if num then
+						num.TextColor3 = Color3.fromRGB(255, 255, 255)
+						local stroke = num:FindFirstChildOfClass("UIStroke")
+						if stroke then
+							stroke.Color = Color3.fromRGB(23, 33, 38)
+							stroke.Thickness = 2.5
+						end
+					end
+					if unit then
+						unit.TextColor3 = Color3.fromRGB(255, 255, 255)
+						local stroke = unit:FindFirstChildOfClass("UIStroke")
+						if stroke then
+							stroke.Color = Color3.fromRGB(23, 33, 38)
+							stroke.Thickness = 2
+						end
+					end
+				else
+					face.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+					lip.BackgroundColor3 = Color3.fromRGB(195, 212, 230)
+					if grad then
+						grad.Enabled = false
+					end
+					if num then
+						num.TextColor3 = Color3.fromRGB(22, 35, 52)
+						local stroke = num:FindFirstChildOfClass("UIStroke")
+						if stroke then
+							stroke.Color = Color3.fromRGB(255, 255, 255)
+							stroke.Thickness = 1.2
+						end
+					end
+					if unit then
+						unit.TextColor3 = Color3.fromRGB(105, 128, 152)
+						local stroke = unit:FindFirstChildOfClass("UIStroke")
+						if stroke then
+							stroke.Color = Color3.fromRGB(255, 255, 255)
+							stroke.Thickness = 1.2
+						end
+					end
+				end
+				local selBadge = face:FindFirstChild("Selected")
+				if selBadge then
+					selBadge.Visible = selected
+				end
+			end
 		end
 		dialog.SelectedLabel.Text = string.format("%d PLAYER%s SELECTED", capacity, capacity == 1 and "" or "S")
 		local toggle = dialog.Friends.Toggle
-		toggle.BackgroundColor3 = if friendsOnly then Color3.fromRGB(45, 203, 101) else Color3.fromRGB(49, 65, 81)
+		toggle.BackgroundColor3 = if friendsOnly then Color3.fromRGB(46, 213, 115) else Color3.fromRGB(200, 214, 229)
 		toggle.Knob.Position = UDim2.fromOffset(if friendsOnly then 38 else 4, 4)
 		toggle:SetAttribute("Enabled", friendsOnly)
 	end
@@ -144,21 +201,22 @@ function PartyController.Start()
 			updateSelection()
 		end
 		lastPartyId = payload.partyId
-		gui.Overlay.Visible = configuring
+		local overlay = gui:FindFirstChild("Overlay")
+		if overlay then
+			overlay.Visible = false
+		end
 		dialog.Visible = configuring
-		waiting.Visible = payload.state == "Countdown" or payload.state == "Launching" or payload.state == "Restarting"
-		waiting.Leave.Visible = payload.state ~= "Restarting"
+		waiting.Visible = payload.state == "Countdown" or payload.state == "Launching"
+		waiting.Leave.Visible = true
 		if configuring and not wasDialog then
 			previousSelection = GuiService.SelectedObject
 			if UserInputService.PreferredInput == Enum.PreferredInput.Gamepad then
 				GuiService.SelectedObject = dialog.Options["Size" .. capacity]
 			end
 		elseif wasDialog and not configuring then
-			GuiService.SelectedObject = if waiting.Visible and waiting.Leave.Visible
-				then waiting.Leave
-				else previousSelection
+			GuiService.SelectedObject = nil
 		end
-		if not configuring and (not waiting.Visible or not waiting.Leave.Visible) then
+		if not configuring then
 			local selected = GuiService.SelectedObject
 			if selected and selected:IsDescendantOf(gui) then
 				GuiService.SelectedObject = nil
@@ -183,7 +241,8 @@ function PartyController.Start()
 	local function layout(size)
 		local compact = size.Y < 620
 		local height = if compact then 394 else 560
-		local scale = math.min(1, (size.X - 28) / 650, (size.Y - 26) / (height + 40))
+		local scale =
+			math.min(DIALOG_MAX_SCALE, size.X * DIALOG_SCREEN_FILL / 650, size.Y * DIALOG_SCREEN_FILL / (height + 40))
 		dialog.UIScale.Scale = math.max(0.35, scale)
 		dialog.Size = UDim2.fromOffset(620, height)
 		dialog.LowerLip.Size = UDim2.fromOffset(632, height + 8)
@@ -208,7 +267,9 @@ function PartyController.Start()
 		dialog.Create.Size = UDim2.fromOffset(540, if compact then 62 else 86)
 		dialog.Footer.Position = UDim2.new(0, 36, 1, -35)
 		waiting.UIScale.Scale = math.min(1, (size.X - 28) / 400)
-		gui.Notice.Size = UDim2.fromOffset(math.min(580, size.X - 32), 76)
+		gui.Notice.AnchorPoint = Vector2.new(0.5, 0.5)
+		gui.Notice.Position = UDim2.new(0.5, 0, if compact then 0.76 else 0.80, 0)
+		gui.Notice.Size = UDim2.fromOffset(math.min(580, size.X - 32), if compact then 60 else 76)
 	end
 	RunService.RenderStepped:Connect(function()
 		local size = gui.AbsoluteSize
@@ -219,14 +280,8 @@ function PartyController.Start()
 		local pending = os.clock() < pendingUntil
 		dialog.Create.Face.Label.Text = if pending then "PLEASE WAIT..." else "CREATE PARTY"
 		if waiting.Visible then
-			waiting.Title.Text = if current.state == "Restarting"
-				then "RESTARTING PARTY"
-				else string.format("PARTY %d/%d", current.count or 1, current.capacity or 4)
-			if current.state == "Restarting" then
-				waiting.Details.Text = if (current.checkpoint or 0) > 0
-					then "Respawn at Checkpoint " .. current.checkpoint
-					else "Respawn at Party Spawn"
-			elseif current.waitingForSpawn then
+			waiting.Title.Text = string.format("PARTY %d/%d", current.count or 1, current.capacity or 4)
+			if current.waitingForSpawn then
 				waiting.Details.Text = "Waiting for a clear spawn..."
 			else
 				waiting.Details.Text = string.format(

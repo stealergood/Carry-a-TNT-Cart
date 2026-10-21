@@ -29,7 +29,7 @@ local function stroke(parent, thickness)
 		{ Color = outline, Thickness = thickness, ApplyStrokeMode = Enum.ApplyStrokeMode.Border }
 	)
 end
-local function label(parent, name, text, position, size, textSize, color, strong)
+local function label(parent, name, text, position, size, textSize, color, strong, customStroke)
 	local obj = make("TextLabel", name, parent, {
 		BackgroundTransparency = 1,
 		Text = text,
@@ -42,9 +42,12 @@ local function label(parent, name, text, position, size, textSize, color, strong
 		TextXAlignment = Enum.TextXAlignment.Left,
 		ZIndex = 5,
 	})
-	if strong then
-		make("UIStroke", "TextOutline", obj, { Color = outline, Thickness = 1.8 })
-	end
+	local thickness = customStroke or (if strong then 1.8 else (if textSize >= 18 then 1.5 else 1.2))
+	make("UIStroke", "TextOutline", obj, {
+		Color = outline,
+		Thickness = thickness,
+		ApplyStrokeMode = Enum.ApplyStrokeMode.Contextual,
+	})
 	return obj
 end
 local function frame(parent, name, position, size, color, radius)
@@ -103,10 +106,6 @@ local gui = make("ScreenGui", "PartyGui", StarterGui, {
 	ScreenInsets = Enum.ScreenInsets.CoreUISafeInsets,
 })
 gui:SetAttribute("DesignSource", "https://www.figma.com/design/aP8YDulc0Do9EmyO66N8Yl?node-id=5-171")
-local overlay = frame(gui, "Overlay", UDim2.fromScale(0, 0), UDim2.fromScale(1, 1), Color3.fromRGB(3, 5, 8))
-overlay.BackgroundTransparency = 0.42
-overlay.Visible = false
-overlay.ZIndex = 1
 local dialog =
 	frame(gui, "Dialog", UDim2.fromScale(0.5, 0.5), UDim2.fromOffset(620, 560), Color3.fromRGB(32, 43, 57), 18)
 dialog.AnchorPoint = Vector2.new(0.5, 0.5)
@@ -114,11 +113,13 @@ dialog.Visible = false
 dialog.SelectionGroup = true
 dialog.ZIndex = 10
 stroke(dialog, 4)
-make("UIScale", "UIScale", dialog, { Scale = 1 })
+make("UIScale", "UIScale", dialog, { Scale = 0.8 })
 local lip = frame(dialog, "LowerLip", UDim2.fromOffset(-6, 11), UDim2.fromOffset(632, 568), outline, 18)
 lip.ZIndex = 0
 local surface = frame(dialog, "Surface", UDim2.fromScale(0, 0), UDim2.fromScale(1, 1), Color3.fromRGB(32, 43, 57), 18)
 surface.ZIndex = 1
+studs(surface, 0.88, 96)
+corner(surface.Studs, 18)
 local header = frame(dialog, "Header", UDim2.fromOffset(0, 0), UDim2.new(1, 0, 0, 108), Color3.fromRGB(237, 40, 81), 14)
 header.ClipsDescendants = true
 studs(header, 0.9, 96)
@@ -294,12 +295,12 @@ button(
 ).Face.Label.TextSize =
 	19
 local notice =
-	frame(gui, "Notice", UDim2.new(0.5, 0, 0, 148), UDim2.fromOffset(580, 76), Color3.fromRGB(17, 25, 32), 12)
-notice.AnchorPoint = Vector2.new(0.5, 0)
+	frame(gui, "Notice", UDim2.new(0.5, 0, 0.8, 0), UDim2.fromOffset(580, 76), Color3.fromRGB(17, 25, 32), 12)
+notice.AnchorPoint = Vector2.new(0.5, 0.5)
 notice.Visible = false
 notice.ZIndex = 20
 stroke(notice, 3)
-local message = label(notice, "Message", "", UDim2.fromOffset(16, 8), UDim2.new(1, -32, 1, -16), 18, white, false)
+local message = label(notice, "Message", "", UDim2.fromOffset(16, 8), UDim2.new(1, -32, 1, -16), 20, white, true)
 message.TextXAlignment = Enum.TextXAlignment.Center
 
 local function part(parent, name, position, size)
@@ -337,6 +338,7 @@ for _, area in ipairs(workspace.PartyDesign:GetChildren()) do
 		local wall = part(barriers, spec[1], bounds.Position + spec[2], spec[3])
 		wall.Color = Color3.fromRGB(45, 183, 243)
 		wall.Material = Enum.Material.ForceField
+		wall.Transparency = 0
 	end
 	local anchor = part(area, "BillboardAnchor", center + Vector3.new(0, 7, 0), Vector3.one)
 	local billboard = make("BillboardGui", "PartyBillboard", anchor, {

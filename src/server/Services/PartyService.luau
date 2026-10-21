@@ -83,7 +83,7 @@ local function updateArea(area)
 	for _, part in ipairs(area.barriers:GetChildren()) do
 		if part:IsA("BasePart") then
 			part.CanCollide = locked
-			part.Transparency = if locked then 0.88 else 1
+			part.Transparency = 0
 		end
 	end
 	area.model:SetAttribute("PartyState", session and session.state or "Idle")
@@ -306,12 +306,6 @@ local function restart(session)
 		if humanoid and humanoid.Health > 0 then
 			humanoid.Health = 0
 		end
-		notify(
-			player,
-			"Party mengulang di "
-				.. (session.checkpoint > 0 and ("Checkpoint " .. session.checkpoint) or "Party Spawn")
-				.. "."
-		)
 	end
 	publish(session)
 end
@@ -701,7 +695,7 @@ function PartyService.Start()
 				updateArea(session.area)
 				for _, player in ipairs(session.members) do
 					local root = Validation.GetCharacterRoot(player)
-					if root and not contains(session.area.bounds, root.Position, 0.5) then
+					if root and not contains(session.area.bounds, root.Position, -2) then
 						placeInArea(session, player)
 					end
 				end
