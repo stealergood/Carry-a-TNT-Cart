@@ -5,6 +5,7 @@ local RunService = game:GetService("RunService")
 local Config = require(ReplicatedStorage.Shared.CartConfig)
 local Constants = require(ReplicatedStorage.Shared.CartConstants)
 local CartMotion = require(ReplicatedStorage.Shared.CartMotion)
+local PartyConfig = require(ReplicatedStorage.Shared.PartyConfig)
 
 local CartPullController = {}
 local player = Players.LocalPlayer
@@ -73,21 +74,50 @@ local function updateMovementLoad(humanoid, loadRatio, dt)
 	humanoid.WalkSpeed += (desiredSpeed - humanoid.WalkSpeed) * response
 end
 
+local function enforcePartyLeash(model)
+	if model:GetAttribute("CartState") ~= Constants.States.Pulling then
+		return
+	end
+	local slot = player:GetAttribute("PartySlot")
+	local attachmentName = slot and PartyConfig.AttachmentNames[slot]
+	local humanoid, characterRoot = getCharacterParts()
+	local cartRoot = model:FindFirstChild(Constants.PhysicsRoot)
+	local pull = cartRoot and attachmentName and cartRoot:FindFirstChild(attachmentName)
+	local hand = characterRoot and characterRoot:FindFirstChild(Constants.HandAttachment)
+	if
+		not humanoid
+		or not characterRoot
+		or not cartRoot
+		or not cartRoot:IsA("BasePart")
+		or not pull
+		or not pull:IsA("Attachment")
+		or not hand
+		or not hand:IsA("Attachment")
+	then
+		return
+	end
+
+	local offset = hand.WorldPosition - pull.WorldPosition
+	local distance = offset.Magnitude
+	if distance < Config.PartyRopeMaxLength then
+		return
+	end
+	local direction = offset.Unit
+	if distance > Config.PartyRopeMaxLength then
+		characterRoot.CFrame -= direction * (distance - Config.PartyRopeMaxLength)
+	end
+	local relativeVelocity = characterRoot.AssemblyLinearVelocity - cartRoot.AssemblyLinearVelocity
+	local outwardSpeed = relativeVelocity:Dot(direction)
+	if outwardSpeed > 0 then
+		characterRoot.AssemblyLinearVelocity -= direction * outwardSpeed
+	end
+end
+
 local function updatePull(model, dt)
 	if model:GetAttribute("PartyId") then
-		local humanoid, characterRoot = getCharacterParts()
-		local root = model:FindFirstChild(Constants.PhysicsRoot)
-		local slot = player:GetAttribute("PartySlot")
-		local PartyConfig = require(ReplicatedStorage.Shared.PartyConfig)
-		local attachmentName = typeof(slot) == "number" and PartyConfig.AttachmentNames[slot]
-		local pull = root and attachmentName and root:FindFirstChild(attachmentName)
-		local hand = characterRoot and characterRoot:FindFirstChild(Constants.HandAttachment)
-		if humanoid and root and pull and hand and model:GetAttribute("CartState") == Constants.States.Pulling then
-			local _, loadRatio = CartMotion.PullForce(root, hand, characterRoot, pull)
-			updateMovementLoad(humanoid, loadRatio, dt)
-		else
-			restorePlayerMovement()
-		end
+		-- The shared cart is driven on the server; slowing each local Humanoid
+		-- makes party movement respond late.
+		restorePlayerMovement()
 		return
 	end
 	if
@@ -160,6 +190,11 @@ function CartPullController.Start()
 		end
 		if activeModel then
 			updatePull(activeModel, dt)
+		end
+	end)
+	RunService.PostSimulation:Connect(function()
+		if activeModel and activeModel:GetAttribute("PartyId") then
+			enforcePartyLeash(activeModel)
 		end
 	end)
 	player.CharacterRemoving:Connect(stopActive)

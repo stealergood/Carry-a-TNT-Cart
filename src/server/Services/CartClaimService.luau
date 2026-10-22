@@ -137,6 +137,7 @@ function CartClaimService.Claim(record, player)
 	beam.Segments = 10
 	beam.LightEmission = 0
 	beam.Color = ColorSequence.new(Color3.fromRGB(143, 111, 74))
+	beam.Transparency = NumberSequence.new(0)
 	beam.Parent = record.root
 
 	record.handAttachment = hand
@@ -212,15 +213,6 @@ function CartClaimService.AttachParty(record, members)
 		hand.Name = Constants.HandAttachment
 		hand.Position = Vector3.new(0, 0, -1)
 		hand.Parent = characterRoot
-		local rope = Instance.new("RopeConstraint")
-		rope.Name = Constants.Rope
-		rope.Attachment0 = attachment
-		rope.Attachment1 = hand
-		rope.Length = Config.RopeMaxLength
-		rope.Thickness = Config.RopeThickness
-		rope.Visible = false
-		rope.Restitution = 0
-		rope.Parent = record.root
 		local beam = Instance.new("Beam")
 		beam.Name = Constants.Beam
 		beam.Attachment0 = attachment
@@ -229,14 +221,15 @@ function CartClaimService.AttachParty(record, members)
 		beam.Width0 = Config.RopeThickness
 		beam.Width1 = Config.RopeThickness
 		beam.Segments = 10
+		beam.LightEmission = 0
 		beam.Color = ColorSequence.new(Color3.fromRGB(143, 111, 74))
+		beam.Transparency = NumberSequence.new(0)
 		beam.Parent = record.root
 		table.insert(record.participants, {
 			player = player,
 			slot = slot,
 			handAttachment = hand,
 			attachment = attachment,
-			rope = rope,
 			beam = beam,
 		})
 		activeByPlayer[player] = record
@@ -265,7 +258,6 @@ function CartClaimService.Release(record)
 				end
 				member.player:SetAttribute("PartySlot", nil)
 			end
-			member.rope:Destroy()
 			member.beam:Destroy()
 			member.handAttachment:Destroy()
 		end

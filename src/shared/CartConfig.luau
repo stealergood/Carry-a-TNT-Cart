@@ -3,8 +3,12 @@ return table.freeze({
 	-- Batas keras tali. Beri toleransi kecil untuk replikasi physics, bukan untuk melepas cart.
 	RopeMaxLength = 12,
 	MaxReleaseDistance = 13,
+	-- Party attachment stays visual; the player is leashed without a physics constraint.
+	PartyRopeMaxLength = 10,
+	PartyRopeServerSlack = 1,
 	RopeThickness = 0.12,
 	RopeSlackLength = 5,
+	PartyPullSlackLength = 2,
 	CartMaxHealth = 100,
 	DamageTag = "CartDamage",
 	DamagePerHit = 20,
@@ -25,6 +29,8 @@ return table.freeze({
 	PullSpringAccelerationPerStud = 1.7,
 	PullDampingAcceleration = 0.25,
 	MaxPullAcceleration = 10,
+	-- A crew reaches the force cap quickly; keep the shared cart weight distinct from solo pulling.
+	PartyMaxPullAcceleration = 7,
 	MaxCartSpeed = 16,
 	SoftSpeedStart = 13,
 	HardMaxCartSpeed = 21,

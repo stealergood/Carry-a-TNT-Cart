@@ -17,7 +17,8 @@ function CartMotion.PullForce(
 	root: BasePart,
 	hand: Attachment,
 	playerRoot: BasePart,
-	pullAttachment: Attachment?
+	pullAttachment: Attachment?,
+	slackLength: number?
 ): (Vector3, number)
 	local pull = pullAttachment or root:FindFirstChild("PullAttachment")
 	if not pull or not pull:IsA("Attachment") then
@@ -29,7 +30,7 @@ function CartMotion.PullForce(
 	end
 
 	local direction = offset.Unit
-	local stretch = math.max(0, offset.Magnitude - Config.RopeSlackLength)
+	local stretch = math.max(0, offset.Magnitude - (slackLength or Config.RopeSlackLength))
 	local relativeVelocity = horizontal(playerRoot.AssemblyLinearVelocity - root.AssemblyLinearVelocity)
 	local separationSpeed = relativeVelocity:Dot(direction)
 	local acceleration = math.clamp(

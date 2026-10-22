@@ -52,15 +52,11 @@ function CartValidationService.CheckActive(record)
 			local characterRoot = CartValidationService.GetCharacterRoot(member.player)
 			if
 				not characterRoot
-				or not member.rope.Parent
 				or not member.beam.Parent
 				or not member.handAttachment.Parent
 				or not member.attachment.Parent
 			then
 				return false, "party member invalid"
-			end
-			if (characterRoot.Position - member.attachment.WorldPosition).Magnitude > Config.MaxReleaseDistance then
-				return false, "party rope too far"
 			end
 		end
 		return true

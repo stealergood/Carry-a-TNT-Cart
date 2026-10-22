@@ -373,10 +373,27 @@ function CartPhysicsService.UpdatePartyDrive(record)
 		local character = member.player.Character
 		local playerRoot = character and character:FindFirstChild("HumanoidRootPart")
 		if playerRoot and member.handAttachment.Parent and member.attachment.Parent then
-			total += CartMotion.PullForce(record.root, member.handAttachment, playerRoot, member.attachment)
+			local offset = member.handAttachment.WorldPosition - member.attachment.WorldPosition
+			local distance = offset.Magnitude
+			if distance > Config.PartyRopeMaxLength + Config.PartyRopeServerSlack then
+				local direction = offset.Unit
+				playerRoot.CFrame -= direction * (distance - Config.PartyRopeMaxLength)
+				local relativeVelocity = playerRoot.AssemblyLinearVelocity - record.root.AssemblyLinearVelocity
+				local outwardSpeed = relativeVelocity:Dot(direction)
+				if outwardSpeed > 0 then
+					playerRoot.AssemblyLinearVelocity -= direction * outwardSpeed
+				end
+			end
+			total += CartMotion.PullForce(
+				record.root,
+				member.handAttachment,
+				playerRoot,
+				member.attachment,
+				Config.PartyPullSlackLength
+			)
 		end
 	end
-	local maxForce = record.root.AssemblyMass * Config.MaxPullAcceleration
+	local maxForce = record.root.AssemblyMass * Config.PartyMaxPullAcceleration
 	if total.Magnitude > maxForce then
 		total = total.Unit * maxForce
 	end

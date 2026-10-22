@@ -8,7 +8,6 @@ export type CartRecord = {
 			slot: number,
 			handAttachment: Attachment,
 			attachment: Attachment,
-			rope: RopeConstraint,
 			beam: Beam,
 		}
 	}?,
