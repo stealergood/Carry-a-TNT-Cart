@@ -1,6 +1,7 @@
 local Players = game:GetService("Players")
 
 local Config = require(script.Parent.CartConfig)
+local Constants = require(script.Parent.CartConstants)
 
 local CartMotion = {}
 
@@ -11,6 +12,117 @@ end
 local function smoothstep(value: number): number
 	local t = math.clamp(value, 0, 1)
 	return t * t * (3 - 2 * t)
+end
+
+local function mudAdjustedSpeed(root: BasePart, maxSpeed: number): number
+	local cartModel = root.Parent
+	local multiplier = cartModel and cartModel:GetAttribute(Constants.MudSlowMultiplierAttribute)
+	if typeof(multiplier) == "number" then
+		return maxSpeed * math.clamp(multiplier, 0.1, 1)
+	end
+	return maxSpeed
+end
+
+function CartMotion.GroundSupport(root: BasePart)
+	local model = root.Parent
+	if not model then
+		return nil
+	end
+	local query = RaycastParams.new()
+	query.FilterType = Enum.RaycastFilterType.Exclude
+	query.FilterDescendantsInstances = { model }
+	query.CollisionGroup = Constants.CollisionGroup
+	query.RespectCanCollide = true
+	local minimumNormalY = math.cos(math.rad(Config.GroundMaxSlopeAngle))
+	local normal = Vector3.zero
+	local wheels = {}
+	local contactCount = 0
+	for _, x in ipairs({ -1, 1 }) do
+		for _, z in ipairs({ -1, 1 }) do
+			local wheel = model:FindFirstChild(string.format("WheelProxy_%d_%d", x, z))
+			if wheel and wheel:IsA("BasePart") then
+				local radius = wheel.Size.Y * 0.5
+				local origin = wheel.Position + Vector3.yAxis * Config.GroundRayLift
+				local distance = Config.GroundRayLift + radius + Config.StepMaxHeight + Config.StepClearance
+				local hit = workspace:Raycast(origin, -Vector3.yAxis * distance, query)
+				if hit and hit.Normal.Y >= minimumNormalY then
+					local gap = wheel.Position.Y - radius - hit.Position.Y
+					if gap <= Config.GroundContactGrace then
+						normal += hit.Normal
+						contactCount += 1
+					end
+					table.insert(wheels, { part = wheel, radius = radius, groundY = hit.Position.Y })
+				end
+			end
+		end
+	end
+	if contactCount < 2 then
+		return nil
+	end
+	return { normal = normal.Unit, wheels = wheels, query = query }
+end
+
+local function stepLiftAcceleration(root: BasePart, direction: Vector3, support): number
+	if horizontal(root.AssemblyLinearVelocity):Dot(direction) > Config.StepMaxClimbSpeed then
+		return 0
+	end
+	local stepHeight = 0
+	for _, sample in ipairs(support.wheels) do
+		local bottom = sample.part.Position - Vector3.yAxis * sample.radius
+		local wall = workspace:Raycast(
+			Vector3.new(bottom.X, sample.groundY + 0.06, bottom.Z),
+			direction * (sample.radius + Config.StepProbeDistance),
+			support.query
+		)
+		if wall and wall.Normal.Y < 0.5 then
+			local above = wall.Position + direction * 0.12
+			above = Vector3.new(above.X, sample.groundY + Config.StepMaxHeight + 0.1, above.Z)
+			local top = workspace:Raycast(
+				above,
+				-Vector3.yAxis * (Config.StepMaxHeight + Config.StepClearance + 0.1),
+				support.query
+			)
+			if top and top.Normal.Y >= math.cos(math.rad(Config.GroundMaxSlopeAngle)) then
+				local height = top.Position.Y - bottom.Y
+				local obstacleHeight = top.Position.Y - sample.groundY
+				if
+					obstacleHeight > 0.05
+					and obstacleHeight <= Config.StepMaxHeight
+					and height > -Config.StepClearance
+				then
+					stepHeight = math.max(stepHeight, height + Config.StepClearance)
+				end
+			end
+		end
+	end
+	if stepHeight == 0 then
+		return 0
+	end
+	local desiredUpSpeed = math.min(stepHeight * Config.StepLiftResponse, Config.StepMaxUpSpeed)
+	return math.clamp(
+		workspace.Gravity + (desiredUpSpeed - root.AssemblyLinearVelocity.Y) * Config.StepLiftResponse,
+		0,
+		workspace.Gravity * Config.StepMaxSupportRatio
+	)
+end
+
+function CartMotion.GroundAssistForce(root: BasePart, driveForce: Vector3, support): Vector3
+	local drive = horizontal(driveForce)
+	if not support or drive.Magnitude < Config.SteeringMinForce then
+		return Vector3.zero
+	end
+	local mass = root.AssemblyMass
+	local effort = math.clamp(drive.Magnitude / (mass * Config.GroundAssistFullAcceleration), 0, 1)
+	local normal = support.normal
+	local tangent = (drive.Unit - normal * drive.Unit:Dot(normal)).Unit
+	-- Cancel only the gravity along a supported slope; retain the normal weight on the wheels.
+	local slopeGravity = (Vector3.yAxis - normal * normal.Y) * workspace.Gravity
+	local slopeDrive = tangent * drive.Magnitude - drive
+	local stepAcceleration = stepLiftAcceleration(root, drive.Unit, support)
+	-- A lifted wheel no longer supplies the slope's normal reaction.
+	local slopeWeight = math.max(0, 1 - stepAcceleration / workspace.Gravity)
+	local stepLift = Vector3.yAxis * stepAcceleration
+	return slopeDrive + (slopeGravity * slopeWeight + stepLift) * mass * effort
 end
 
 function CartMotion.PullForce(
@@ -39,8 +151,10 @@ function CartMotion.PullForce(
 		Config.MaxPullAcceleration
 	)
 	local speed = horizontal(root.AssemblyLinearVelocity).Magnitude
-	local range = math.max(Config.MaxCartSpeed - Config.SoftSpeedStart, 0.01)
-	local speedFactor = 1 - smoothstep((speed - Config.SoftSpeedStart) / range)
+	local maxSpeed = mudAdjustedSpeed(root, Config.MaxCartSpeed)
+	local softSpeedStart = mudAdjustedSpeed(root, Config.SoftSpeedStart)
+	local range = math.max(maxSpeed - softSpeedStart, 0.01)
+	local speedFactor = 1 - smoothstep((speed - softSpeedStart) / range)
 	return direction * root.AssemblyMass * acceleration * speedFactor, acceleration / Config.MaxPullAcceleration
 end
 
@@ -87,8 +201,10 @@ function CartMotion.PushForce(root: BasePart, pushProxy: BasePart): Vector3
 		totalAcceleration = totalAcceleration.Unit * Config.MaxCombinedPushAcceleration
 	end
 	local speed = horizontal(root.AssemblyLinearVelocity).Magnitude
-	local range = math.max(Config.MaxPushSpeed - Config.SoftSpeedStart, 0.01)
-	local speedFactor = 1 - smoothstep((speed - Config.SoftSpeedStart) / range)
+	local maxSpeed = mudAdjustedSpeed(root, Config.MaxPushSpeed)
+	local softSpeedStart = mudAdjustedSpeed(root, Config.SoftSpeedStart)
+	local range = math.max(maxSpeed - softSpeedStart, 0.01)
+	local speedFactor = 1 - smoothstep((speed - softSpeedStart) / range)
 	return totalAcceleration * root.AssemblyMass * speedFactor
 end
 
@@ -98,6 +214,7 @@ function CartMotion.ResistanceForce(
 	rollingResistance: number?,
 	velocityResistance: number?
 ): Vector3
+	maxSpeed = mudAdjustedSpeed(root, maxSpeed)
 	local velocity = horizontal(root.AssemblyLinearVelocity)
 	local speed = velocity.Magnitude
 	if speed <= 0.05 then
@@ -140,6 +257,10 @@ function CartMotion.SteeringTorque(root: BasePart, driveForce: Vector3, allowSta
 	end
 	local forward = horizontal(root.CFrame.RightVector)
 	local direction = desired.Unit
+	-- Backing out should align the same axle instead of turning the cart around.
+	if forward:Dot(direction) < 0 then
+		direction = -direction
+	end
 	local yawError = forward:Cross(direction).Y
 	local yawVelocity = root.AssemblyAngularVelocity.Y
 	local torque = yawError * Config.SteeringTorquePerError * speedFactor - yawVelocity * Config.SteeringDampingTorque
@@ -147,14 +268,15 @@ function CartMotion.SteeringTorque(root: BasePart, driveForce: Vector3, allowSta
 	return Vector3.yAxis * torque
 end
 
-function CartMotion.UprightTorque(root: BasePart): Vector3
+function CartMotion.UprightTorque(root: BasePart, groundNormal: Vector3?): Vector3
 	local up = root.CFrame.UpVector
-	local tiltAxis = up:Cross(Vector3.yAxis)
-	if up:Dot(Vector3.yAxis) < -0.9 and tiltAxis.Magnitude < 0.05 then
+	local targetUp = groundNormal or Vector3.yAxis
+	local tiltAxis = up:Cross(targetUp)
+	if up:Dot(targetUp) < -0.9 and tiltAxis.Magnitude < 0.05 then
 		tiltAxis = root.CFrame.RightVector
 	end
 	local angularVelocity = root.AssemblyAngularVelocity
-	local tiltAngularVelocity = angularVelocity - Vector3.yAxis * angularVelocity:Dot(Vector3.yAxis)
+	local tiltAngularVelocity = angularVelocity - targetUp * angularVelocity:Dot(targetUp)
 	local torque = tiltAxis * Config.UprightSpringTorque - tiltAngularVelocity * Config.UprightDampingTorque
 	if torque.Magnitude > Config.UprightMaxTorque then
 		return torque.Unit * Config.UprightMaxTorque

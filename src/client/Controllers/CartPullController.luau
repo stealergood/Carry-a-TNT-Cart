@@ -22,11 +22,19 @@ local function clearDrive(model)
 	if drive and drive:IsA("VectorForce") then
 		drive.Force = Vector3.zero
 	end
+	local groundAssist = root and root:FindFirstChild(Constants.GroundAssist)
+	if groundAssist and groundAssist:IsA("VectorForce") then
+		groundAssist.Force = Vector3.zero
+	end
 end
 
 local function restorePlayerMovement()
 	if activeHumanoid and activeHumanoid.Parent and originalWalkSpeed then
-		activeHumanoid.WalkSpeed = originalWalkSpeed
+		local character = activeHumanoid.Parent
+		local mudBaseSpeed = character:GetAttribute(Constants.MudBaseWalkSpeedAttribute)
+		local mudMultiplier = character:GetAttribute(Constants.MudSlowMultiplierAttribute)
+		local baseSpeed = if typeof(mudBaseSpeed) == "number" then mudBaseSpeed else originalWalkSpeed
+		activeHumanoid.WalkSpeed = baseSpeed * (if typeof(mudMultiplier) == "number" then mudMultiplier else 1)
 	end
 	activeHumanoid = nil
 	originalWalkSpeed = nil
@@ -68,8 +76,15 @@ local function updateMovementLoad(humanoid, loadRatio, dt)
 		activeHumanoid = humanoid
 		originalWalkSpeed = humanoid.WalkSpeed
 	end
+	local character = humanoid.Parent
+	local mudBaseSpeed = character and character:GetAttribute(Constants.MudBaseWalkSpeedAttribute)
+	local mudMultiplier = character and character:GetAttribute(Constants.MudSlowMultiplierAttribute)
+	if typeof(mudBaseSpeed) == "number" then
+		originalWalkSpeed = mudBaseSpeed
+	end
 	local baseSpeed = originalWalkSpeed or humanoid.WalkSpeed
 	local desiredSpeed = math.max(Config.MinPullerWalkSpeed, baseSpeed * (1 - Config.PullerMaxSpeedPenalty * loadRatio))
+		* (if typeof(mudMultiplier) == "number" then mudMultiplier else 1)
 	local response = 1 - math.exp(-Config.PullerSpeedResponse * dt)
 	humanoid.WalkSpeed += (desiredSpeed - humanoid.WalkSpeed) * response
 end
@@ -174,9 +189,14 @@ local function updatePull(model, dt)
 	if steering and steering:IsA("Torque") then
 		steering.Torque = CartMotion.SteeringTorque(root, pullForce + pushForce, true)
 	end
+	local support = CartMotion.GroundSupport(root)
+	local groundAssist = root:FindFirstChild(Constants.GroundAssist)
+	if groundAssist and groundAssist:IsA("VectorForce") then
+		groundAssist.Force = CartMotion.GroundAssistForce(root, pullForce + pushForce, support)
+	end
 	local stabilizer = root:FindFirstChild(Constants.UprightStabilizer)
 	if stabilizer and stabilizer:IsA("Torque") then
-		stabilizer.Torque = CartMotion.UprightTorque(root)
+		stabilizer.Torque = CartMotion.UprightTorque(root, support and support.normal)
 	end
 	updateMovementLoad(humanoid, loadRatio, dt)
 end

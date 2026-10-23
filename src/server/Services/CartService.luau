@@ -12,6 +12,7 @@ type CartState = CartTypes.CartState
 local CollisionGroupSetup = require(script.Parent.Parent.Setup.CollisionGroupSetup)
 local CartClaimService = require(script.Parent.CartClaimService)
 local CartHealthService = require(script.Parent.CartHealthService)
+local MudObstacleService = require(script.Parent.MudObstacleService)
 local CartPhysicsService = require(script.Parent.CartPhysicsService)
 local CartRespawnService = require(script.Parent.CartRespawnService)
 local CartValidationService = require(script.Parent.CartValidationService)
@@ -337,6 +338,9 @@ function CartService.Start()
 	for _, model in ipairs(CollectionService:GetTagged(Constants.Tag)) do
 		register(model)
 	end
+	MudObstacleService.Start(function(model: Model): CartRecord?
+		return records[model]
+	end)
 	local defaultCart = workspace:FindFirstChild("Minecart_Default_TNT")
 	if defaultCart and defaultCart:IsA("Model") and not CollectionService:HasTag(defaultCart, Constants.Tag) then
 		CollectionService:AddTag(defaultCart, Constants.Tag)
@@ -356,7 +360,7 @@ function CartService.Start()
 					record.root,
 					pushDrive and pushDrive:IsA("VectorForce") and pushDrive.Force or Vector3.zero
 				)
-				CartPhysicsService.UpdateUprightTorque(record.root)
+				CartPhysicsService.UpdateGroundForces(record.root)
 			end
 		end
 		validationElapsed += dt

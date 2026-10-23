@@ -151,6 +151,7 @@ function CartPhysicsService.Prepare(model)
 				proxy.CFrame = root.CFrame * targetOffset
 			end
 			proxy.Transparency = 1
+			proxy.Shape = Enum.PartType.Ball
 			proxy.CastShadow = false
 			proxy.Massless = false
 			proxy.Size = Config.WheelProxySize
@@ -286,6 +287,7 @@ function CartPhysicsService.Prepare(model)
 	getVectorForce(root, Constants.PullDrive).Force = Vector3.zero
 	getVectorForce(root, Constants.PushDrive).Force = Vector3.zero
 	getVectorForce(root, Constants.MotionResistance).Force = Vector3.zero
+	getVectorForce(root, Constants.GroundAssist).Force = Vector3.zero
 	getVectorForce(root, Constants.LateralGrip).Force = Vector3.zero
 
 	local legacyStabilizer = root:FindFirstChild("UprightStabilizer")
@@ -404,7 +406,7 @@ function CartPhysicsService.UpdatePartyDrive(record)
 	root[Constants.MotionResistance].Force = CartMotion.ResistanceForce(root, Config.MaxCartSpeed)
 	root[Constants.LateralGrip].Force = CartMotion.LateralGripForce(root, total)
 	root[Constants.SteeringTorque].Torque = CartMotion.SteeringTorque(root, total, true)
-	CartPhysicsService.UpdateUprightTorque(root)
+	CartPhysicsService.UpdateGroundForces(root, total)
 end
 
 function CartPhysicsService.UpdateMotionResistance(root, maxSpeed, useIdlePushResistance)
@@ -435,15 +437,26 @@ function CartPhysicsService.UpdateSteering(root, driveForce)
 	end
 end
 
-function CartPhysicsService.UpdateUprightTorque(root)
+function CartPhysicsService.UpdateGroundForces(root, driveForce)
+	local support = CartMotion.GroundSupport(root)
+	local groundAssist = root:FindFirstChild(Constants.GroundAssist)
+	if groundAssist and groundAssist:IsA("VectorForce") then
+		local pushDrive = root:FindFirstChild(Constants.PushDrive)
+		local drive = driveForce or (pushDrive and pushDrive:IsA("VectorForce") and pushDrive.Force) or Vector3.zero
+		groundAssist.Force = CartMotion.GroundAssistForce(root, drive, support)
+	end
 	local stabilizer = root:FindFirstChild(Constants.UprightStabilizer)
 	if not stabilizer or not stabilizer:IsA("Torque") then
 		return
 	end
-	stabilizer.Torque = CartMotion.UprightTorque(root)
+	stabilizer.Torque = CartMotion.UprightTorque(root, support and support.normal)
 end
 
 function CartPhysicsService.StopPullDrive(record)
+	local groundAssist = record.root:FindFirstChild(Constants.GroundAssist)
+	if groundAssist and groundAssist:IsA("VectorForce") then
+		groundAssist.Force = Vector3.zero
+	end
 	local drive = record.root:FindFirstChild(Constants.PullDrive)
 	if drive and drive:IsA("VectorForce") then
 		drive.Force = Vector3.zero
