@@ -256,9 +256,13 @@ function CartMotion.SteeringTorque(root: BasePart, driveForce: Vector3, allowSta
 		speedFactor = math.max(speedFactor, Config.PullSteeringStartFactor)
 	end
 	local forward = horizontal(root.CFrame.RightVector)
+	if forward.Magnitude < 0.05 then
+		return Vector3.zero
+	end
+	forward = forward.Unit
 	local direction = desired.Unit
-	-- Backing out should align the same axle instead of turning the cart around.
-	if forward:Dot(direction) < 0 then
+	-- Preserve straight backing; oblique rear pulls must still turn toward the rope.
+	if forward:Dot(direction) < -math.cos(math.rad(Config.SteeringReverseConeAngle)) then
 		direction = -direction
 	end
 	local yawError = forward:Cross(direction).Y

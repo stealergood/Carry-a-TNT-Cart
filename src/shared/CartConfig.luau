@@ -52,6 +52,7 @@ return table.freeze({
 	SteeringTorquePerError = 3000,
 	SteeringDampingTorque = 1100,
 	MaxSteeringTorque = 4000,
+	SteeringReverseConeAngle = 15,
 	-- Hanya dipakai saat cart sedang ditarik; dorongan idle tetap tidak dapat memutar cart di tempat.
 	PullSteeringStartFactor = 0.3,
 	MaxAngularSpeed = 7,
