@@ -1,14 +1,17 @@
 return table.freeze({
 	MaxClaimDistance = 10,
 	-- Batas keras tali. Beri toleransi kecil untuk replikasi physics, bukan untuk melepas cart.
-	RopeMaxLength = 12,
-	MaxReleaseDistance = 13,
+	RopeMaxLength = 7.7,
+	MaxReleaseDistance = 10.5,
 	-- Party attachment stays visual; the player is leashed without a physics constraint.
-	PartyRopeMaxLength = 10,
+	PartyRopeMaxLength = 6.2,
 	PartyRopeServerSlack = 1,
 	RopeThickness = 0.12,
-	RopeSlackLength = 5,
-	PartyPullSlackLength = 2,
+	RopeSlackLength = 2.2,
+	PartyPullSlackLength = 1,
+	-- Offset posisi attachment tali di badan pemain (relatif terhadap HumanoidRootPart).
+	-- Sumbu Z positif (+Z) berada di belakang punggung pemain, -Z di depan pemain, -Y ke arah bawah/pinggang.
+	PlayerRopeAttachmentOffset = Vector3.new(0, -0.2, 0.8),
 	CartMaxHealth = 100,
 	DamageTag = "CartDamage",
 	DamagePerHit = 20,

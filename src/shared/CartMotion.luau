@@ -56,7 +56,7 @@ function CartMotion.GroundSupport(root: BasePart)
 			end
 		end
 	end
-	if contactCount < 2 then
+	if contactCount == 0 then
 		return nil
 	end
 	return { normal = normal.Unit, wheels = wheels, query = query }
@@ -150,11 +150,14 @@ function CartMotion.PullForce(
 		0,
 		Config.MaxPullAcceleration
 	)
-	local speed = horizontal(root.AssemblyLinearVelocity).Magnitude
+	-- Scale down only while the cart is already moving toward the pull target.
+	-- Using total speed here made a backward pull ineffective while the cart
+	-- was still rolling forward near its speed limit.
+	local speedTowardTarget = math.max(0, horizontal(root.AssemblyLinearVelocity):Dot(direction))
 	local maxSpeed = mudAdjustedSpeed(root, Config.MaxCartSpeed)
 	local softSpeedStart = mudAdjustedSpeed(root, Config.SoftSpeedStart)
 	local range = math.max(maxSpeed - softSpeedStart, 0.01)
-	local speedFactor = 1 - smoothstep((speed - softSpeedStart) / range)
+	local speedFactor = 1 - smoothstep((speedTowardTarget - softSpeedStart) / range)
 	return direction * root.AssemblyMass * acceleration * speedFactor, acceleration / Config.MaxPullAcceleration
 end
 

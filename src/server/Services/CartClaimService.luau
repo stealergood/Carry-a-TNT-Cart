@@ -114,7 +114,7 @@ function CartClaimService.Claim(record, player)
 
 	local hand = Instance.new("Attachment")
 	hand.Name = Constants.HandAttachment
-	hand.Position = Vector3.new(0, 0, -1)
+	hand.Position = Config.PlayerRopeAttachmentOffset
 	hand.Parent = characterRoot
 
 	local rope = Instance.new("RopeConstraint")
@@ -211,7 +211,7 @@ function CartClaimService.AttachParty(record, members)
 		end
 		local hand = Instance.new("Attachment")
 		hand.Name = Constants.HandAttachment
-		hand.Position = Vector3.new(0, 0, -1)
+		hand.Position = Config.PlayerRopeAttachmentOffset
 		hand.Parent = characterRoot
 		local beam = Instance.new("Beam")
 		beam.Name = Constants.Beam
