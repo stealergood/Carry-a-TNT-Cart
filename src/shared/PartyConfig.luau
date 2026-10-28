@@ -1,7 +1,7 @@
 -- Party state is session-only. Studio owns the UI, zones and cart template.
 return table.freeze({
 	MaxPlayers = 4,
-	DefaultCapacity = 2,
+	DefaultCapacity = 1,
 	CountdownSeconds = 15,
 	ConfigureTimeout = 60,
 	TickInterval = 0.1,

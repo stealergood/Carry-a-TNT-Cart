@@ -14,13 +14,17 @@ local function smoothstep(value: number): number
 	return t * t * (3 - 2 * t)
 end
 
-local function mudAdjustedSpeed(root: BasePart, maxSpeed: number): number
+local function mudSlowMultiplier(root: BasePart): number
 	local cartModel = root.Parent
 	local multiplier = cartModel and cartModel:GetAttribute(Constants.MudSlowMultiplierAttribute)
 	if typeof(multiplier) == "number" then
-		return maxSpeed * math.clamp(multiplier, 0.1, 1)
+		return math.clamp(multiplier, 0.1, 1)
 	end
-	return maxSpeed
+	return 1
+end
+
+local function mudAdjustedSpeed(root: BasePart, maxSpeed: number): number
+	return maxSpeed * mudSlowMultiplier(root)
 end
 
 function CartMotion.GroundSupport(root: BasePart)
@@ -150,6 +154,7 @@ function CartMotion.PullForce(
 		0,
 		Config.MaxPullAcceleration
 	)
+	local driveAcceleration = acceleration * mudSlowMultiplier(root)
 	-- Scale down only while the cart is already moving toward the pull target.
 	-- Using total speed here made a backward pull ineffective while the cart
 	-- was still rolling forward near its speed limit.
@@ -158,7 +163,7 @@ function CartMotion.PullForce(
 	local softSpeedStart = mudAdjustedSpeed(root, Config.SoftSpeedStart)
 	local range = math.max(maxSpeed - softSpeedStart, 0.01)
 	local speedFactor = 1 - smoothstep((speedTowardTarget - softSpeedStart) / range)
-	return direction * root.AssemblyMass * acceleration * speedFactor, acceleration / Config.MaxPullAcceleration
+	return direction * root.AssemblyMass * driveAcceleration * speedFactor, acceleration / Config.MaxPullAcceleration
 end
 
 function CartMotion.PushForce(root: BasePart, pushProxy: BasePart): Vector3
@@ -203,6 +208,7 @@ function CartMotion.PushForce(root: BasePart, pushProxy: BasePart): Vector3
 	if totalAcceleration.Magnitude > Config.MaxCombinedPushAcceleration then
 		totalAcceleration = totalAcceleration.Unit * Config.MaxCombinedPushAcceleration
 	end
+	totalAcceleration *= mudSlowMultiplier(root)
 	local speed = horizontal(root.AssemblyLinearVelocity).Magnitude
 	local maxSpeed = mudAdjustedSpeed(root, Config.MaxPushSpeed)
 	local softSpeedStart = mudAdjustedSpeed(root, Config.SoftSpeedStart)
