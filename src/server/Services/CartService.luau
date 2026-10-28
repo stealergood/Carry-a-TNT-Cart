@@ -295,6 +295,53 @@ function CartService.ExplodePartyCart(record)
 	end
 end
 
+function CartService.TeleportCart(record: CartRecord?, targetCFrame: CFrame): boolean
+	if not record or record.exploded or not record.model.Parent or not record.root.Parent then
+		return false
+	end
+	record.model:PivotTo(targetCFrame)
+	record.root.AssemblyLinearVelocity = Vector3.zero
+	record.root.AssemblyAngularVelocity = Vector3.zero
+	local now = os.clock()
+	record.lastPosition = record.root.Position
+	record.lastCFrame = record.root.CFrame
+	record.lastCheck = now
+	record.windowStartPosition = record.root.Position
+	record.windowStartTime = now
+	record.spawnCFrame = targetCFrame
+	return true
+end
+
+function CartService.SetCheckpointSpawn(record: CartRecord?, spawnCFrame: CFrame)
+	if record then
+		record.spawnCFrame = spawnCFrame
+	end
+end
+
+function CartService.GetIdleSoloCart(nearPosition: Vector3?): CartRecord?
+	local bestRecord: CartRecord? = nil
+	local bestDistance = math.huge
+	for _, record in pairs(records) do
+		if
+			not record.partyId
+			and not record.exploded
+			and record.state == Constants.States.Idle
+			and record.model.Parent
+			and record.root.Parent
+		then
+			if not nearPosition then
+				return record
+			end
+			local distance = (record.root.Position - nearPosition).Magnitude
+			if distance < bestDistance then
+				bestDistance = distance
+				bestRecord = record
+			end
+		end
+	end
+	return bestRecord
+end
+
 function CartService.Start()
 	if started then
 		return
@@ -316,6 +363,7 @@ function CartService.Start()
 
 	CartClaimService.Start(setState, onPlayerDied)
 	CartHealthService.Start(function(record)
+		local ownerUserId = record.respawnOwnerUserId or (record.puller and record.puller.UserId)
 		CartClaimService.ClearDeathBinding(record)
 		CartClaimService.Release(record)
 		setState(record, Constants.States.Disabled)
@@ -325,7 +373,7 @@ function CartService.Start()
 				partyFailureHandler(record.partyId, "cart exploded")
 			end
 		else
-			CartRespawnService.Schedule(record, record.respawnOwnerUserId)
+			CartRespawnService.Schedule(record, ownerUserId)
 		end
 	end)
 

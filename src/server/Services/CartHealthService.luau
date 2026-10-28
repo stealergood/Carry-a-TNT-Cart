@@ -72,15 +72,18 @@ local function updateGui(record)
 	end
 end
 
-local function getDamageSource(part: BasePart): Instance?
+local function getDamageSource(part: BasePart): (Instance?, number?)
 	local current: Instance? = part
 	while current and current ~= workspace do
+		if CollectionService:HasTag(current, Config.ThornBushDamageTag) then
+			return current, Config.ThornBushDamagePerHit
+		end
 		if CollectionService:HasTag(current, Config.DamageTag) then
-			return current
+			return current, Config.DamagePerHit
 		end
 		current = current.Parent
 	end
-	return nil
+	return nil, nil
 end
 
 function CartHealthService.Damage(record, amount: number?): boolean
@@ -112,13 +115,13 @@ function CartHealthService.Explode(record): boolean
 	return true
 end
 
-local function beginDamageContact(record, source: Instance)
+local function beginDamageContact(record, source: Instance, amount: number?)
 	if record.activeDamageParts[source] then
 		record.activeDamageParts[source] = os.clock()
 		return
 	end
 	record.activeDamageParts[source] = os.clock()
-	CartHealthService.Damage(record)
+	CartHealthService.Damage(record, amount)
 end
 
 local function watchCollider(record, collider: BasePart)
@@ -127,9 +130,9 @@ local function watchCollider(record, collider: BasePart)
 		record.connections,
 		collider.Touched:Connect(function(hit)
 			if hit:IsA("BasePart") then
-				local source = getDamageSource(hit)
+				local source, amount = getDamageSource(hit)
 				if source then
-					beginDamageContact(record, source)
+					beginDamageContact(record, source, amount)
 				end
 			end
 		end)
@@ -155,18 +158,18 @@ function CartHealthService.Update(record)
 	overlapParams.FilterType = Enum.RaycastFilterType.Exclude
 	overlapParams.FilterDescendantsInstances = { record.model }
 	local damageProxy = record.model:FindFirstChild(Constants.DamageProxy)
-	local currentDamageParts = {}
+	local currentDamageParts: { [Instance]: number } = {}
 	if damageProxy and damageProxy:IsA("BasePart") then
 		for _, hit in ipairs(workspace:GetPartsInPart(damageProxy, overlapParams)) do
-			local source = getDamageSource(hit)
+			local source, amount = getDamageSource(hit)
 			if source then
-				currentDamageParts[source] = true
+				currentDamageParts[source] = amount or Config.DamagePerHit
 			end
 		end
 	end
 	local now = os.clock()
-	for hit in pairs(currentDamageParts) do
-		beginDamageContact(record, hit)
+	for hit, amount in pairs(currentDamageParts) do
+		beginDamageContact(record, hit, amount)
 	end
 	for hit, lastSeen in pairs(record.activeDamageParts) do
 		if not hit.Parent or (not currentDamageParts[hit] and now - lastSeen >= Config.DamageExitGrace) then

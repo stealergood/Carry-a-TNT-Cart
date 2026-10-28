@@ -2,6 +2,7 @@
 return table.freeze({
 	MaxPlayers = 4,
 	DefaultCapacity = 1,
+	MaxCheckpoint = 4,
 	CountdownSeconds = 15,
 	ConfigureTimeout = 60,
 	TickInterval = 0.1,
@@ -14,6 +15,9 @@ return table.freeze({
 	CheckpointHeight = 10,
 	TemplateName = "PartyCartTemplate",
 	RemoteFolder = "PartyRemotes",
+	AdminUsernames = table.freeze({
+		"xintaroze",
+	}),
 	AttachmentNames = table.freeze({
 		"PullAttachment",
 		"PullAttachmentBack",

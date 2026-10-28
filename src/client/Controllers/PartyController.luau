@@ -230,6 +230,35 @@ function PartyController.Start()
 		end
 	end
 	snapshot.OnClientEvent:Connect(apply)
+
+	local checkpointPads: { [number]: BasePart } = {}
+	local defaultPadColors: { [BasePart]: Color3 } = {}
+	local checkpointFolder = workspace:FindFirstChild("CheckPoint")
+	if checkpointFolder then
+		for _, model in ipairs(checkpointFolder:GetChildren()) do
+			local index = tonumber(model.Name:match("^Checkpoint(%d+)$"))
+			local spawnPad = model:FindFirstChild("CheckpointSpawn")
+			if index and index <= Config.MaxCheckpoint and spawnPad and spawnPad:IsA("BasePart") then
+				checkpointPads[index] = spawnPad
+				defaultPadColors[spawnPad] = spawnPad.Color
+			end
+		end
+	end
+
+	local function refreshCheckpointVisuals()
+		local activeCp = player:GetAttribute("PartyCheckpoint") or player:GetAttribute("Checkpoint") or 0
+		for index, pad in pairs(checkpointPads) do
+			if pad.Parent then
+				pad.Color = if typeof(activeCp) == "number" and index <= activeCp
+					then Color3.fromRGB(46, 213, 115)
+					else defaultPadColors[pad]
+			end
+		end
+	end
+	player:GetAttributeChangedSignal("Checkpoint"):Connect(refreshCheckpointVisuals)
+	player:GetAttributeChangedSignal("PartyCheckpoint"):Connect(refreshCheckpointVisuals)
+	refreshCheckpointVisuals()
+
 	updateSelection()
 	request:FireServer("Sync")
 	player.CharacterAdded:Connect(function()

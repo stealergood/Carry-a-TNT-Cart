@@ -15,6 +15,8 @@ return table.freeze({
 	CartMaxHealth = 100,
 	DamageTag = "CartDamage",
 	DamagePerHit = 20,
+	ThornBushDamageTag = "ThornBushDamage",
+	ThornBushDamagePerHit = 10,
 	DamageExitGrace = 0.15,
 	MudTag = "MudSlowDamage",
 	MudScanInterval = 0.1,

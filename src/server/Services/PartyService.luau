@@ -16,6 +16,9 @@ local sessions = {}
 local membership = {}
 local areas = {}
 local checkpoints = {}
+local checkpointRocks = {}
+local soloCheckpoints = {}
+local soloPreviousPositions = {}
 local playerConnections = {}
 local admissionPending = {}
 local nextAdmission = {}
@@ -29,6 +32,25 @@ local spawnFolder
 local started = false
 local revision = 0
 local random = Random.new()
+
+local function isAdmin(player: Player): boolean
+	local lowerName = string.lower(player.Name)
+	for _, adminName in ipairs(Config.AdminUsernames) do
+		if string.lower(adminName) == lowerName then
+			return true
+		end
+	end
+	return false
+end
+
+local function setPlayerCheckpointState(player: Player, cpIndex: number)
+	player:SetAttribute("Checkpoint", cpIndex)
+	local leaderstats = player:FindFirstChild("leaderstats")
+	local cpValue = leaderstats and leaderstats:FindFirstChild("Checkpoint")
+	if cpValue and cpValue:IsA("IntValue") then
+		cpValue.Value = cpIndex
+	end
+end
 
 local function contains(part, position, inset)
 	local p = part.CFrame:PointToObjectSpace(position)
@@ -45,6 +67,7 @@ local function movePlayer(player, target)
 	root.CFrame = target
 	root.AssemblyLinearVelocity = Vector3.zero
 	root.AssemblyAngularVelocity = Vector3.zero
+	soloPreviousPositions[player] = root.Position
 	return true
 end
 
@@ -54,7 +77,13 @@ local function publishPlayer(player)
 	end
 	local session = membership[player]
 	revision += 1
-	local payload = { revision = revision, state = "None", notice = notifications[player] }
+	local payload = {
+		revision = revision,
+		state = "None",
+		checkpoint = soloCheckpoints[player] or 0,
+		isAdmin = isAdmin(player),
+		notice = notifications[player],
+	}
 	if session then
 		payload.partyId = session.id
 		payload.state = session.state
@@ -310,14 +339,23 @@ local function restart(session)
 	publish(session)
 end
 
-local function spawnClear(position, session)
+local CHECKPOINT_OFFSETS = {
+	Vector3.zero,
+	Vector3.new(-8, 0, -8),
+	Vector3.new(8, 0, 8),
+	Vector3.new(-8, 0, 8),
+	Vector3.new(8, 0, -8),
+}
+
+local function spawnClear(position, session, ignoreModel)
 	for _, model in ipairs(CollectionService:GetTagged(Constants.Tag)) do
 		local root = model:IsA("Model") and model:FindFirstChild(Constants.PhysicsRoot)
 		if
 			root
 			and model:IsDescendantOf(workspace)
 			and not model:GetAttribute("Exploded")
-			and (not session.cart or model ~= session.cart.model)
+			and (not session or not session.cart or model ~= session.cart.model)
+			and (not ignoreModel or model ~= ignoreModel)
 		then
 			local delta = root.Position - position
 			if Vector3.new(delta.X, 0, delta.Z).Magnitude < Config.SpawnClearRadius and math.abs(delta.Y) < 12 then
@@ -327,48 +365,65 @@ local function spawnClear(position, session)
 	end
 	for _, player in ipairs(Players:GetPlayers()) do
 		local root = Validation.GetCharacterRoot(player)
-		if root and membership[player] ~= session and (root.Position - position).Magnitude < 9 then
+		if root and (not session or membership[player] ~= session) and (root.Position - position).Magnitude < 9 then
 			return false
 		end
 	end
 	return true
 end
 
-local function chooseSpawn(session)
-	if session.checkpoint > 0 then
-		local cp = checkpoints[session.checkpoint]
-		if not cp or not cp.Parent then
-			return nil
-		end
-		-- Centre and four corners stay on the existing 34x33 checkpoint rock.
-		for _, offset in ipairs({
-			Vector3.zero,
-			Vector3.new(-8, 0, -8),
-			Vector3.new(8, 0, 8),
-			Vector3.new(-8, 0, 8),
-			Vector3.new(8, 0, -8),
-		}) do
-			local cf = cp.CFrame * CFrame.new(offset + Vector3.new(0, cp.Size.Y / 2 + 1.2, 0))
-			if spawnClear(cf.Position, session) then
-				return cf
-			end
-		end
+local function chooseCheckpointCFrame(cpIndex: number, session, ignoreModel: Model?, allowFallback: boolean?): CFrame?
+	local cp = checkpoints[cpIndex]
+	if not cp or not cp.Parent then
 		return nil
 	end
+	-- Centre and four corners stay on the existing 34x33 checkpoint rock.
+	for _, offset in ipairs(CHECKPOINT_OFFSETS) do
+		local cf = cp.CFrame * CFrame.new(offset + Vector3.new(0, cp.Size.Y / 2 + 1.2, 0))
+		if spawnClear(cf.Position, session, ignoreModel) then
+			return cf
+		end
+	end
+	if allowFallback then
+		return cp.CFrame * CFrame.new(0, cp.Size.Y / 2 + 1.2, 0)
+	end
+	return nil
+end
+
+local function chooseLobbySpawnCFrame(session, ignoreModel: Model?, allowFallback: boolean?): CFrame?
 	local candidates = {}
+	local firstPart = nil
 	for _, part in ipairs(spawnFolder:GetChildren()) do
 		if part:IsA("BasePart") then
+			if not firstPart then
+				firstPart = part
+			end
 			table.insert(candidates, part)
 		end
 	end
 	while #candidates > 0 do
 		local part = table.remove(candidates, random:NextInteger(1, #candidates))
 		local cf = part.CFrame * CFrame.new(0, part.Size.Y / 2 + 1.2, 0)
-		if spawnClear(cf.Position, session) then
+		if spawnClear(cf.Position, session, ignoreModel) then
 			return cf
 		end
 	end
+	if allowFallback then
+		if firstPart then
+			return firstPart.CFrame * CFrame.new(0, firstPart.Size.Y / 2 + 1.2, 0)
+		end
+		if lobbySpawn then
+			return lobbySpawn.CFrame * CFrame.new(0, 4, 0)
+		end
+	end
 	return nil
+end
+
+local function chooseSpawn(session, allowFallback: boolean?)
+	if session.checkpoint > 0 then
+		return chooseCheckpointCFrame(session.checkpoint, session, nil, allowFallback)
+	end
+	return chooseLobbySpawnCFrame(session, nil, allowFallback)
 end
 
 local function launch(session)
@@ -414,6 +469,7 @@ local function launch(session)
 	session.previousPositions = {}
 	for _, player in ipairs(session.members) do
 		player:SetAttribute("PartyCheckpoint", session.checkpoint)
+		setPlayerCheckpointState(player, session.checkpoint)
 		local root = Validation.GetCharacterRoot(player)
 		session.previousPositions[player] = root and root.Position
 	end
@@ -421,21 +477,25 @@ local function launch(session)
 	publish(session)
 end
 
-local function checkpointContains(part, position)
+local function checkpointContains(index: number, position: Vector3): boolean
+	local part = checkpoints[index]
+	if not part or not part.Parent then
+		return false
+	end
+	local rock = checkpointRocks[index]
 	local p = part.CFrame:PointToObjectSpace(position)
-	return math.abs(p.X) <= part.Size.X / 2
-		and math.abs(p.Z) <= part.Size.Z / 2
-		and p.Y >= -2
-		and p.Y <= Config.CheckpointHeight
+	local halfX = if rock and rock.Parent then math.max(part.Size.X, rock.Size.X) * 0.5 else part.Size.X * 0.5
+	local halfZ = if rock and rock.Parent then math.max(part.Size.Z, rock.Size.Z) * 0.5 else part.Size.Z * 0.5
+	return math.abs(p.X) <= halfX and math.abs(p.Z) <= halfZ and p.Y >= -3 and p.Y <= Config.CheckpointHeight
 end
 
 local function updateCheckpoint(session)
-	local target = checkpoints[session.checkpoint + 1]
-	if not target then
+	local nextIndex = session.checkpoint + 1
+	if nextIndex > Config.MaxCheckpoint or not checkpoints[nextIndex] then
 		return
 	end
 	local cartRoot = session.cart and session.cart.root
-	local reached = cartRoot and checkpointContains(target, cartRoot.Position)
+	local reached = cartRoot and checkpointContains(nextIndex, cartRoot.Position)
 	for _, player in ipairs(session.members) do
 		local root = Validation.GetCharacterRoot(player)
 		if root then
@@ -444,7 +504,7 @@ local function updateCheckpoint(session)
 			local plausible = not previous or (root.Position - previous).Magnitude <= CartConfig.MaxReleaseDistance
 			if
 				plausible
-				and checkpointContains(target, root.Position)
+				and checkpointContains(nextIndex, root.Position)
 				and cartRoot
 				and (root.Position - cartRoot.Position).Magnitude <= CartConfig.MaxReleaseDistance + 4
 			then
@@ -454,12 +514,61 @@ local function updateCheckpoint(session)
 		end
 	end
 	if reached then
-		session.checkpoint += 1
+		session.checkpoint = nextIndex
 		for _, player in ipairs(session.members) do
+			soloCheckpoints[player] = session.checkpoint
 			player:SetAttribute("PartyCheckpoint", session.checkpoint)
+			setPlayerCheckpointState(player, session.checkpoint)
 			notify(player, "Checkpoint " .. session.checkpoint .. " tersimpan untuk seluruh party!")
 		end
 		publish(session)
+	end
+end
+
+local function updateSoloCheckpoint(player: Player)
+	if membership[player] or pendingLobby[player] then
+		return
+	end
+	local root = Validation.GetCharacterRoot(player)
+	if not root then
+		return
+	end
+	local currentCp = soloCheckpoints[player] or 0
+	local activeCart = CartClaimService.GetActive(player)
+	if activeCart and currentCp > 0 then
+		local cpPart = checkpoints[currentCp]
+		if cpPart and (activeCart.spawnCFrame.Position - cpPart.Position).Magnitude > 25 then
+			local cpSpawn = chooseCheckpointCFrame(currentCp, nil, activeCart.model, true)
+			if cpSpawn then
+				CartService.SetCheckpointSpawn(activeCart, cpSpawn)
+			end
+		end
+	end
+
+	local nextCp = currentCp + 1
+	local cartRoot = activeCart and activeCart.root
+	local previous = soloPreviousPositions[player]
+	local plausible = not previous or (root.Position - previous).Magnitude <= CartConfig.MaxReleaseDistance * 2
+	soloPreviousPositions[player] = root.Position
+
+	if nextCp <= Config.MaxCheckpoint and checkpoints[nextCp] then
+		local reached = false
+		if cartRoot and cartRoot.Parent and checkpointContains(nextCp, cartRoot.Position) then
+			reached = true
+		elseif plausible and checkpointContains(nextCp, root.Position) then
+			if not cartRoot or (root.Position - cartRoot.Position).Magnitude <= CartConfig.MaxReleaseDistance + 6 then
+				reached = true
+			end
+		end
+		if reached then
+			soloCheckpoints[player] = nextCp
+			setPlayerCheckpointState(player, nextCp)
+			local cpSpawn = chooseCheckpointCFrame(nextCp, nil, activeCart and activeCart.model, true)
+			if activeCart and cpSpawn then
+				CartService.SetCheckpointSpawn(activeCart, cpSpawn)
+			end
+			notify(player, string.format("Checkpoint %d/%d tersimpan!", nextCp, Config.MaxCheckpoint))
+		end
 	end
 end
 
@@ -476,6 +585,23 @@ local function characterLost(player)
 end
 
 local function bindPlayer(player)
+	soloCheckpoints[player] = soloCheckpoints[player] or 0
+	player:SetAttribute("IsAdmin", isAdmin(player))
+	local leaderstats = player:FindFirstChild("leaderstats")
+	if not leaderstats then
+		leaderstats = Instance.new("Folder")
+		leaderstats.Name = "leaderstats"
+		leaderstats.Parent = player
+	end
+	local cpStat = leaderstats:FindFirstChild("Checkpoint")
+	if not cpStat then
+		cpStat = Instance.new("IntValue")
+		cpStat.Name = "Checkpoint"
+		cpStat.Value = soloCheckpoints[player]
+		cpStat.Parent = leaderstats
+	end
+	setPlayerCheckpointState(player, soloCheckpoints[player])
+
 	local connections = {}
 	playerConnections[player] = connections
 	local deathConnection
@@ -486,12 +612,30 @@ local function bindPlayer(player)
 		end
 		task.spawn(function()
 			local humanoid = character:WaitForChild("Humanoid", 10)
+			local root = character:WaitForChild("HumanoidRootPart", 10)
 			if player.Parent ~= Players or player.Character ~= character or not humanoid then
 				return
 			end
 			deathConnection = humanoid.Died:Connect(function()
 				characterLost(player)
 			end)
+			if root and root:IsA("BasePart") then
+				task.wait(0.05)
+				if
+					player.Parent == Players
+					and player.Character == character
+					and not membership[player]
+					and not pendingLobby[player]
+				then
+					local savedCp = soloCheckpoints[player] or 0
+					if savedCp > 0 then
+						local cpSpawn = chooseCheckpointCFrame(savedCp, nil, nil, true)
+						if cpSpawn then
+							movePlayer(player, cpSpawn * CFrame.new(6, 2, 0))
+						end
+					end
+				end
+			end
 		end)
 	end
 	table.insert(connections, player.CharacterAdded:Connect(characterAdded))
@@ -520,6 +664,80 @@ local function bindPlayer(player)
 	end
 end
 
+local function handleAdminTeleport(player: Player, targetCp: any)
+	if not isAdmin(player) then
+		notify(player, "Akses ditolak: khusus Admin terdaftar.")
+		return
+	end
+	if
+		typeof(targetCp) ~= "number"
+		or targetCp ~= targetCp
+		or targetCp % 1 ~= 0
+		or targetCp < 0
+		or targetCp > Config.MaxCheckpoint
+	then
+		notify(player, "Target checkpoint tidak valid.")
+		return
+	end
+	if targetCp > 0 and not checkpoints[targetCp] then
+		notify(player, "Checkpoint " .. targetCp .. " belum tersedia di Workspace.")
+		return
+	end
+
+	local label = if targetCp == 0 then "Lobby (Start)" else "Checkpoint " .. targetCp
+	local session = membership[player]
+	if session and session.state == "Running" then
+		session.checkpoint = targetCp
+		local spawnCFrame = chooseSpawn(session, true)
+		if not spawnCFrame then
+			notify(player, "Lokasi spawn untuk " .. label .. " tidak ditemukan.")
+			return
+		end
+		if session.cart then
+			CartService.TeleportCart(session.cart, spawnCFrame)
+		end
+		session.previousPositions = {}
+		for slot, member in ipairs(session.members) do
+			soloCheckpoints[member] = targetCp
+			member:SetAttribute("PartyCheckpoint", targetCp)
+			setPlayerCheckpointState(member, targetCp)
+			movePlayer(member, spawnCFrame * CFrame.new(Config.MemberOffsets[slot]))
+			local memberRoot = Validation.GetCharacterRoot(member)
+			session.previousPositions[member] = memberRoot and memberRoot.Position
+			notify(member, "Admin teleport party ke " .. label .. "!")
+		end
+		publish(session)
+		return
+	end
+
+	if session then
+		leaveWaiting(player)
+	end
+
+	soloCheckpoints[player] = targetCp
+	setPlayerCheckpointState(player, targetCp)
+
+	local activeCart = CartClaimService.GetActive(player)
+	local targetCart = activeCart
+		or CartService.GetIdleSoloCart(
+			if targetCp > 0 and checkpoints[targetCp] then checkpoints[targetCp].Position else nil
+		)
+	local spawnCFrame = if targetCp > 0
+		then chooseCheckpointCFrame(targetCp, nil, targetCart and targetCart.model, true)
+		else chooseLobbySpawnCFrame(nil, targetCart and targetCart.model, true)
+
+	if not spawnCFrame then
+		notify(player, "Lokasi spawn untuk " .. label .. " tidak ditemukan.")
+		return
+	end
+
+	movePlayer(player, spawnCFrame * CFrame.new(6, 2, 0))
+	if targetCart then
+		CartService.TeleportCart(targetCart, spawnCFrame)
+	end
+	notify(player, "Admin Teleport: " .. label)
+end
+
 local function onRequest(player, action, capacity, friendsOnly)
 	local now = os.clock()
 	if typeof(action) ~= "string" or now - (lastRequest[player] or -math.huge) < Config.RequestInterval then
@@ -528,6 +746,10 @@ local function onRequest(player, action, capacity, friendsOnly)
 	lastRequest[player] = now
 	if action == "Sync" then
 		publishPlayer(player)
+		return
+	end
+	if action == "AdminTeleportCP" then
+		handleAdminTeleport(player, capacity)
 		return
 	end
 	local session = membership[player]
@@ -598,8 +820,12 @@ function PartyService.Start()
 		for _, model in ipairs(checkpointFolder:GetChildren()) do
 			local index = tonumber(model.Name:match("^Checkpoint(%d+)$"))
 			local spawn = model:FindFirstChild("CheckpointSpawn")
-			if index and spawn and spawn:IsA("BasePart") then
+			local rock = model:FindFirstChild("CheckpointRock")
+			if index and index <= Config.MaxCheckpoint and spawn and spawn:IsA("BasePart") then
 				checkpoints[index] = spawn
+				if rock and rock:IsA("BasePart") then
+					checkpointRocks[index] = rock
+				end
 			end
 		end
 	end
@@ -651,6 +877,8 @@ function PartyService.Start()
 			end
 		end
 		playerConnections[player] = nil
+		soloCheckpoints[player] = nil
+		soloPreviousPositions[player] = nil
 		admissionPending[player] = nil
 		nextAdmission[player] = nil
 		lastRequest[player] = nil
@@ -702,6 +930,7 @@ function PartyService.Start()
 			end
 		end
 		for _, player in ipairs(Players:GetPlayers()) do
+			updateSoloCheckpoint(player)
 			if eligible(player) and now >= (nextAdmission[player] or 0) and not admissionPending[player] then
 				local root = Validation.GetCharacterRoot(player)
 				for _, area in ipairs(areas) do
