@@ -148,7 +148,9 @@ local function register(model)
 			end
 
 			local targetPosition = characterRoot.CFrame:PointToWorldSpace(Config.RespawnCartOffset)
-			record.root.CFrame = CFrame.new(targetPosition) * characterRoot.CFrame.Rotation
+			record.root.CFrame = CFrame.new(targetPosition)
+				* characterRoot.CFrame.Rotation
+				* CFrame.Angles(0, math.rad(90), 0)
 			record.root.AssemblyLinearVelocity = Vector3.zero
 			record.root.AssemblyAngularVelocity = Vector3.zero
 			record.lastPosition = record.root.Position

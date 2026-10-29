@@ -458,7 +458,8 @@ local function launch(session)
 	for slot, player in ipairs(session.members) do
 		movePlayer(player, spawnCFrame * CFrame.new(Config.MemberOffsets[slot]))
 	end
-	local record, reason = CartService.CreatePartyCart(session.id, session.members, spawnCFrame)
+	local cartCFrame = spawnCFrame * Config.CartSpawnRotation
+	local record, reason = CartService.CreatePartyCart(session.id, session.members, cartCFrame)
 	if not record then
 		disband(session, reason or "Party tidak dapat dimulai. Silakan coba lagi.", nil, true)
 		return
@@ -540,7 +541,7 @@ local function updateSoloCheckpoint(player: Player)
 		if cpPart and (activeCart.spawnCFrame.Position - cpPart.Position).Magnitude > 25 then
 			local cpSpawn = chooseCheckpointCFrame(currentCp, nil, activeCart.model, true)
 			if cpSpawn then
-				CartService.SetCheckpointSpawn(activeCart, cpSpawn)
+				CartService.SetCheckpointSpawn(activeCart, cpSpawn * Config.CartSpawnRotation)
 			end
 		end
 	end
@@ -565,7 +566,7 @@ local function updateSoloCheckpoint(player: Player)
 			setPlayerCheckpointState(player, nextCp)
 			local cpSpawn = chooseCheckpointCFrame(nextCp, nil, activeCart and activeCart.model, true)
 			if activeCart and cpSpawn then
-				CartService.SetCheckpointSpawn(activeCart, cpSpawn)
+				CartService.SetCheckpointSpawn(activeCart, cpSpawn * Config.CartSpawnRotation)
 			end
 			notify(player, string.format("Checkpoint %d/%d tersimpan!", nextCp, Config.MaxCheckpoint))
 		end
@@ -631,7 +632,7 @@ local function bindPlayer(player)
 					if savedCp > 0 then
 						local cpSpawn = chooseCheckpointCFrame(savedCp, nil, nil, true)
 						if cpSpawn then
-							movePlayer(player, cpSpawn * CFrame.new(6, 2, 0))
+							movePlayer(player, cpSpawn * CFrame.new(Config.MemberOffsets[1]))
 						end
 					end
 				end
@@ -694,7 +695,7 @@ local function handleAdminTeleport(player: Player, targetCp: any)
 			return
 		end
 		if session.cart then
-			CartService.TeleportCart(session.cart, spawnCFrame)
+			CartService.TeleportCart(session.cart, spawnCFrame * Config.CartSpawnRotation)
 		end
 		session.previousPositions = {}
 		for slot, member in ipairs(session.members) do
@@ -731,9 +732,9 @@ local function handleAdminTeleport(player: Player, targetCp: any)
 		return
 	end
 
-	movePlayer(player, spawnCFrame * CFrame.new(6, 2, 0))
+	movePlayer(player, spawnCFrame * CFrame.new(Config.MemberOffsets[1]))
 	if targetCart then
-		CartService.TeleportCart(targetCart, spawnCFrame)
+		CartService.TeleportCart(targetCart, spawnCFrame * Config.CartSpawnRotation)
 	end
 	notify(player, "Admin Teleport: " .. label)
 end

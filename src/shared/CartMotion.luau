@@ -147,6 +147,9 @@ function CartMotion.PullForce(
 
 	local direction = offset.Unit
 	local stretch = math.max(0, offset.Magnitude - (slackLength or Config.RopeSlackLength))
+	if stretch <= 0 then
+		return Vector3.zero, 0
+	end
 	local relativeVelocity = horizontal(playerRoot.AssemblyLinearVelocity - root.AssemblyLinearVelocity)
 	local separationSpeed = relativeVelocity:Dot(direction)
 	local acceleration = math.clamp(

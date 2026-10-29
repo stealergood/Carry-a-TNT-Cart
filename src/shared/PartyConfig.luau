@@ -30,11 +30,13 @@ return table.freeze({
 		Vector3.new(0, 0.35, 1.7),
 		Vector3.new(0, 0.35, -1.7),
 	}),
-	-- Front is +X on the existing cart, so its right side is +Z.
+	CartSpawnRotation = CFrame.Angles(0, math.rad(90), 0),
+	-- Track runs along -Z. With cart rotated 90 deg (CartSpawnRotation), front is -Z,
+	-- back is +Z, right side is +X, and left side is -X.
 	MemberOffsets = table.freeze({
-		Vector3.new(6, 2, 0),
-		Vector3.new(-6, 2, 0),
-		Vector3.new(0, 2, 5.5),
 		Vector3.new(0, 2, -5.5),
+		Vector3.new(0, 2, 5.5),
+		Vector3.new(4.5, 2, 0),
+		Vector3.new(-4.5, 2, 0),
 	}),
 })
