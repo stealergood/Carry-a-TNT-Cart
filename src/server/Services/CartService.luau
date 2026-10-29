@@ -13,6 +13,7 @@ local CollisionGroupSetup = require(script.Parent.Parent.Setup.CollisionGroupSet
 local CartClaimService = require(script.Parent.CartClaimService)
 local CartHealthService = require(script.Parent.CartHealthService)
 local MudObstacleService = require(script.Parent.MudObstacleService)
+local BoulderObstacleService = require(script.Parent.BoulderObstacleService)
 local CartPhysicsService = require(script.Parent.CartPhysicsService)
 local CartRespawnService = require(script.Parent.CartRespawnService)
 local CartValidationService = require(script.Parent.CartValidationService)
@@ -389,6 +390,7 @@ function CartService.Start()
 	MudObstacleService.Start(function(model: Model): CartRecord?
 		return records[model]
 	end)
+	BoulderObstacleService.Start()
 	local defaultCart = workspace:FindFirstChild("Minecart_Default_TNT")
 	if defaultCart and defaultCart:IsA("Model") and not CollectionService:HasTag(defaultCart, Constants.Tag) then
 		CollectionService:AddTag(defaultCart, Constants.Tag)

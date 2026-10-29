@@ -12,3 +12,4 @@ sourcemap.json
 # Local implementation backups and build outputs
 /artifacts/
 /.agents/
+graphify-out/

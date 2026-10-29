@@ -1,6 +1,9 @@
 local Players = game:GetService("Players")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
 local UserInputService = game:GetService("UserInputService")
+
+local Constants = require(ReplicatedStorage.Shared.CartConstants)
 
 local MazeCameraController = {}
 
@@ -15,7 +18,6 @@ local savedThirdPersonZoom = 12
 
 local triggerMasuk: BasePart? = nil
 local triggerKeluar: BasePart? = nil
-local triggerConnections: { RBXScriptConnection } = {}
 local characterConnections: { RBXScriptConnection } = {}
 
 local function pointInPart(part: BasePart, worldPoint: Vector3, pad: number?): boolean
@@ -90,53 +92,34 @@ local function resetCameraLock()
 	end)
 end
 
-local function isPartOfLocalCharacter(hit: Instance): boolean
-	local character = player.Character
-	return character ~= nil and hit:IsDescendantOf(character)
-end
-
 local function prepareTriggerPart(part: BasePart)
 	part.Anchored = true
 	part.CanCollide = false
-	part.CanTouch = true
-	part.CanQuery = true
+	part.CanTouch = false
+	part.CanQuery = false
+	part.AudioCanCollide = false
+	part.Massless = true
+	part.CastShadow = false
 	part.Transparency = 1
+	part.CollisionGroup = Constants.TriggerCollisionGroup
 end
 
 local function bindTriggers()
-	for _, conn in ipairs(triggerConnections) do
-		conn:Disconnect()
-	end
-	table.clear(triggerConnections)
-
-	local foundMasuk = workspace:FindFirstChild("TriggerMasuk", true)
-	local foundKeluar = workspace:FindFirstChild("TriggerKeluar", true)
+	local triggerFolder = workspace:FindFirstChild("MazeTriggers", true)
+	local foundMasuk = (triggerFolder and triggerFolder:FindFirstChild("TriggerMasuk"))
+		or workspace:FindFirstChild("TriggerMasuk", true)
+	local foundKeluar = (triggerFolder and triggerFolder:FindFirstChild("TriggerKeluar"))
+		or workspace:FindFirstChild("TriggerKeluar", true)
 
 	triggerMasuk = if foundMasuk and foundMasuk:IsA("BasePart") then foundMasuk else nil
 	triggerKeluar = if foundKeluar and foundKeluar:IsA("BasePart") then foundKeluar else nil
 
 	if triggerMasuk then
 		prepareTriggerPart(triggerMasuk)
-		table.insert(
-			triggerConnections,
-			triggerMasuk.Touched:Connect(function(hit)
-				if isPartOfLocalCharacter(hit) then
-					enableFirstPersonLock()
-				end
-			end)
-		)
 	end
 
 	if triggerKeluar then
 		prepareTriggerPart(triggerKeluar)
-		table.insert(
-			triggerConnections,
-			triggerKeluar.Touched:Connect(function(hit)
-				if isPartOfLocalCharacter(hit) then
-					resetCameraLock()
-				end
-			end)
-		)
 	end
 end
 
@@ -227,4 +210,3 @@ function MazeCameraController.Start()
 end
 
 return MazeCameraController
-

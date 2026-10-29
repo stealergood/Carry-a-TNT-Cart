@@ -26,6 +26,7 @@ return table.freeze({
 	Prompt = "CarryPrompt",
 	CollisionGroup = "CarryCart",
 	PlayerCollisionGroup = "CarryPlayer",
+	TriggerCollisionGroup = "CarryTrigger",
 	States = table.freeze({
 		Idle = "Idle",
 		Claiming = "Claiming",

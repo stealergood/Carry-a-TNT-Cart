@@ -78,6 +78,10 @@ local function getDamageSource(part: BasePart): (Instance?, number?)
 		if CollectionService:HasTag(current, Config.ThornBushDamageTag) then
 			return current, Config.ThornBushDamagePerHit
 		end
+		if CollectionService:HasTag(current, Config.BoulderDamageTag or "BoulderDamage") then
+			local customDmg = current:GetAttribute("Damage")
+			return current, (type(customDmg) == "number" and customDmg) or Config.BoulderDamagePerHit or 15
+		end
 		if CollectionService:HasTag(current, Config.DamageTag) then
 			return current, Config.DamagePerHit
 		end

@@ -22,14 +22,49 @@ local function ensureGroup(name)
 	end
 end
 
+local function configureTriggerPart(part: BasePart)
+	part.Anchored = true
+	part.CanCollide = false
+	part.CanTouch = false
+	part.CanQuery = false
+	part.AudioCanCollide = false
+	part.Massless = true
+	part.CastShadow = false
+	part.Transparency = 1
+	part.CollisionGroup = Constants.TriggerCollisionGroup
+end
+
+local function configureMazeTriggers()
+	local triggerFolder = workspace:FindFirstChild("MazeTriggers", true)
+	if triggerFolder then
+		for _, desc in ipairs(triggerFolder:GetDescendants()) do
+			if desc:IsA("BasePart") then
+				configureTriggerPart(desc)
+			end
+		end
+	end
+	for _, name in ipairs({ "TriggerMasuk", "TriggerKeluar" }) do
+		local part = workspace:FindFirstChild(name, true)
+		if part and part:IsA("BasePart") then
+			configureTriggerPart(part)
+		end
+	end
+end
+
 function CollisionGroupSetup.Start()
 	ensureGroup(Constants.CollisionGroup)
 	ensureGroup(Constants.PlayerCollisionGroup)
+	ensureGroup(Constants.TriggerCollisionGroup)
 	PhysicsService:CollisionGroupSetCollidable(Constants.CollisionGroup, "Default", true)
 	PhysicsService:CollisionGroupSetCollidable(Constants.CollisionGroup, Constants.CollisionGroup, true)
 	PhysicsService:CollisionGroupSetCollidable(Constants.CollisionGroup, Constants.PlayerCollisionGroup, false)
 	PhysicsService:CollisionGroupSetCollidable(Constants.PlayerCollisionGroup, "Default", true)
 	PhysicsService:CollisionGroupSetCollidable(Constants.PlayerCollisionGroup, Constants.PlayerCollisionGroup, true)
+	PhysicsService:CollisionGroupSetCollidable(Constants.TriggerCollisionGroup, "Default", false)
+	PhysicsService:CollisionGroupSetCollidable(Constants.TriggerCollisionGroup, Constants.CollisionGroup, false)
+	PhysicsService:CollisionGroupSetCollidable(Constants.TriggerCollisionGroup, Constants.PlayerCollisionGroup, false)
+	PhysicsService:CollisionGroupSetCollidable(Constants.TriggerCollisionGroup, Constants.TriggerCollisionGroup, false)
+	configureMazeTriggers()
 	for _, player in ipairs(Players:GetPlayers()) do
 		if player.Character then
 			assignCharacterCollisionGroup(player.Character)
